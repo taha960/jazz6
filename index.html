@@ -118,11 +118,11 @@
   .pad{margin-top:16px; display:grid; grid-template-columns:repeat(6,1fr); gap:8px;}
   .key{
     background:var(--card2); border:1px solid var(--line); color:var(--text);
-    border-radius:11px; min-height:54px; font-size:19px; font-weight:800;
+    border-radius:11px; min-height:66px; font-size:22px; font-weight:800;
     display:flex; flex-direction:column; align-items:center; justify-content:center;
     cursor:pointer;
   }
-  .key .alt{font-size:11px; color:var(--muted); font-weight:600; margin-top:1px;}
+  .key .alt{font-size:12px; color:var(--muted); font-weight:700; margin-top:5px; letter-spacing:.02em;}
   .key:active{background:#2c3540;}
   .key.black{background:#12161c;}
 
@@ -346,8 +346,10 @@ function genMode1(quality){
     const rootPc = (givenPc - INTERVALS[quality][roleIndex] + 120) % 12;
     return { role, chord:BY_ROOTPC[quality][rootPc] };
   });
+  // Cellules construites ligne par ligne (niv.6 -> niv.1) : ordre requis par
+  // la grille CSS, qui place les elements dans l'ordre du DOM.
   const cells=[];
-  const slots=[];
+  const byCol=[[],[],[],[]]; // byCol[columnIndex][degreeIndex] -> cell
   BOX_ROWS.forEach(degreeIndex=>{
     columns.forEach((column,columnIndex)=>{
       const cell = {
@@ -360,13 +362,24 @@ function genMode1(quality){
         root:degreeIndex===0,
         slot:-1
       };
+      byCol[columnIndex][degreeIndex]=cell;
+      cells.push(cell);
+    });
+  });
+  // Slots (ordre de remplissage / tabulation) : colonne par colonne, degre
+  // ascendant 1->3->5->6 a l'interieur de chaque colonne. On termine un
+  // accord avant de passer au suivant, au lieu de sauter d'accord en accord
+  // pour un meme degre.
+  const slots=[];
+  for(let columnIndex=0; columnIndex<4; columnIndex++){
+    DEGREES.forEach((deg,degreeIndex)=>{
+      const cell=byCol[columnIndex][degreeIndex];
       if(!cell.given){
         cell.slot=slots.length;
         slots.push({correctPc:cell.pc, filledPc:null, filledName:''});
       }
-      cells.push(cell);
     });
-  });
+  }
   state.q = { type:1, quality, givenPc, givenName, columns, cells };
   state.slots = slots;
 }
