@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<title>Jazz 6 · Chord Boxes</title>
+
+<!-- PWA -->
+<meta name="theme-color" content="#0f1216" />
+<meta name="description" content="Entraînement aux accords maj6 / min6 — méthode chord boxes (Barry Harris). 100% offline." />
+<link rel="manifest" href="manifest.webmanifest" />
+
+<!-- iOS / Safari "Ajouter à l'écran d'accueil" -->
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Jazz6" />
+<link rel="apple-touch-icon" href="icons/apple-touch-icon-180.png" />
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
+
+<style>
+  :root{
+    --bg:#0f1216; --card:#181d24; --card2:#222a33; --line:#2b333d;
+    --text:#eef2f6; --muted:#8b97a5;
+    --accent:#3ddc97; --accent-d:#1f7d57;
+    --root:#ffc861; --given:#5aa9ff;
+    --ok:#3ddc97; --bad:#ff6b6b;
+    --radius:14px;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0; height:100%;}
+  body{
+    background:var(--bg); color:var(--text);
+    font-family:-apple-system,system-ui,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-size:17px; line-height:1.35;
+    -webkit-user-select:none; user-select:none;
+    overscroll-behavior:none;
+  }
+  .app{
+    display:flex; flex-direction:column;
+    max-width:540px; margin:0 auto; width:100%;
+    min-height:100vh; min-height:100dvh;
+  }
+
+  /* Header */
+  header{
+    display:flex; align-items:center; justify-content:space-between;
+    gap:8px; padding:calc(env(safe-area-inset-top) + 10px) 16px 10px;
+    border-bottom:1px solid var(--line); position:sticky; top:0; background:var(--bg); z-index:5;
+  }
+  .stat{display:flex; flex-direction:column; align-items:center; min-width:64px;}
+  .stat b{font-size:20px; font-variant-numeric:tabular-nums;}
+  .stat span{font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.06em;}
+  #h-timer{color:var(--root);}
+  #h-timer.warn{color:var(--bad);}
+
+  /* Main / screens */
+  main{flex:1; overflow-y:auto; padding:16px 16px 24px; -webkit-overflow-scrolling:touch;}
+  .screen{display:none;}
+  .screen.active{display:block;}
+
+  /* Prompt */
+  .prompt{background:var(--card); border:1px solid var(--line); border-radius:var(--radius); padding:16px; margin-bottom:14px;}
+  .prompt .q{font-size:24px; font-weight:700; line-height:1.25;}
+  .prompt .q b{color:var(--accent);}
+  .prompt .sub{color:var(--muted); font-size:14px; margin-top:6px;}
+  .muted{color:var(--muted); font-weight:400;}
+
+  /* Boxes (mode 1) */
+  .box-matrix{display:grid; grid-template-columns:38px repeat(4,minmax(0,1fr)); gap:7px; align-items:stretch;}
+  .matrix-head,.matrix-corner,.level{
+    min-width:0; display:flex; align-items:center; justify-content:center;
+    color:var(--muted); font-size:10px; font-weight:800; text-transform:uppercase; white-space:nowrap;
+  }
+  .level{border:1px solid var(--line); border-radius:9px; background:var(--card); font-size:14px;}
+  .level.root-level{color:var(--root);}
+  .box{
+    position:relative; min-width:0; aspect-ratio:1/1; border:2px solid var(--line); border-radius:10px;
+    background:var(--card2); display:flex; align-items:center; justify-content:center;
+    font-size:23px; font-weight:800; overflow:hidden; touch-action:manipulation;
+  }
+  .box.fill{cursor:pointer;}
+  .box.fill .val{color:var(--text);}
+  .box.empty .val{color:var(--muted); font-weight:600;}
+  .box.active{border-color:var(--accent); box-shadow:0 0 0 3px rgba(61,220,151,.18);}
+  .box.root{border-color:var(--root);}
+  .box.given{border-color:var(--given); background:#18222e;}
+  .box.root.given{box-shadow:inset 0 -3px var(--root);}
+  .box.ok{border-color:var(--ok); background:#12231b;}
+  .box.bad{border-color:var(--bad); background:#241315;}
+
+  /* Rows (mode 2) */
+  .rowhint{color:var(--muted); font-size:14px; margin-bottom:10px;}
+  .rows{display:flex; flex-direction:column; gap:10px;}
+  .row{display:flex; align-items:center; gap:10px;}
+  .deg2{width:34px; height:34px; flex:0 0 34px; border-radius:9px; background:var(--card2);
+    display:flex; align-items:center; justify-content:center; font-weight:800; color:var(--muted);}
+  .rowbox{
+    flex:1; min-height:52px; border:2px solid var(--line); border-radius:12px; background:var(--card2);
+    display:flex; align-items:center; justify-content:center; font-size:24px; font-weight:800; color:var(--muted);
+  }
+  .rowbox.fill{cursor:pointer;}
+  .rowbox.active{border-color:var(--accent); box-shadow:0 0 0 3px rgba(61,220,151,.18);}
+  .rowbox.given{border-color:var(--given); background:#18222e; color:var(--text);}
+  .rowbox.ok{border-color:var(--ok); background:#12231b; color:var(--text);}
+  .rowbox.bad{border-color:var(--bad); background:#241315; color:var(--text);}
+  .qual{flex:0 0 auto; color:var(--muted); font-weight:700; width:56px;}
+
+  /* Feedback */
+  .feedback{margin-top:14px; border-radius:var(--radius); padding:14px; display:none; border:1px solid var(--line); background:var(--card);}
+  .feedback.show{display:block;}
+  .feedback .verdict{font-weight:800; font-size:18px; margin-bottom:6px;}
+  .feedback.good .verdict{color:var(--ok);}
+  .feedback.bad .verdict{color:var(--bad);}
+  .feedback .ans{font-size:16px; line-height:1.5;}
+  .feedback .exp{color:var(--muted); font-size:13px; margin-top:8px;}
+
+  /* Keyboard */
+  .pad{margin-top:16px; display:grid; grid-template-columns:repeat(6,1fr); gap:8px;}
+  .key{
+    background:var(--card2); border:1px solid var(--line); color:var(--text);
+    border-radius:11px; min-height:54px; font-size:19px; font-weight:800;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    cursor:pointer;
+  }
+  .key .alt{font-size:11px; color:var(--muted); font-weight:600; margin-top:1px;}
+  .key:active{background:#2c3540;}
+  .key.black{background:#12161c;}
+
+  /* Buttons */
+  .actions{margin-top:16px; display:flex; flex-direction:column; gap:10px;}
+  .btn{
+    border:none; border-radius:12px; padding:15px; font-size:18px; font-weight:800;
+    background:var(--card2); color:var(--text); cursor:pointer;
+  }
+  .btn:active{filter:brightness(1.15);}
+  .btn.primary{background:var(--accent); color:#06231a;}
+  .btn.primary:disabled{background:var(--card2); color:var(--muted); cursor:default;}
+  .btn.ghost{background:transparent; border:1px solid var(--line); color:var(--muted);}
+  .btn-row{display:flex; gap:10px;}
+  .btn-row .btn{flex:1;}
+
+  /* Settings */
+  .group{background:var(--card); border:1px solid var(--line); border-radius:var(--radius); padding:14px; margin-bottom:14px;}
+  .group h3{margin:0 0 10px; font-size:13px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted);}
+  .seg{display:flex; gap:8px;}
+  .seg button{
+    flex:1; padding:12px 8px; border-radius:10px; border:1px solid var(--line);
+    background:var(--card2); color:var(--muted); font-weight:700; font-size:15px; cursor:pointer;
+  }
+  .seg button.on{background:var(--accent); color:#06231a; border-color:transparent;}
+  .toggle{display:flex; align-items:center; justify-content:space-between;}
+  .toggle .lbl{font-weight:600;}
+  .switch{width:52px; height:30px; border-radius:20px; background:var(--card2); border:1px solid var(--line); position:relative; cursor:pointer; flex:0 0 auto;}
+  .switch .knob{position:absolute; top:2px; left:2px; width:24px; height:24px; border-radius:50%; background:var(--muted); transition:left .15s, background .15s;}
+  .switch.on{background:var(--accent-d); border-color:transparent;}
+  .switch.on .knob{left:24px; background:var(--accent);}
+  .hint{color:var(--muted); font-size:13px; margin-top:8px;}
+
+  /* Stats */
+  .grid2{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
+  .metric{background:var(--card); border:1px solid var(--line); border-radius:var(--radius); padding:16px;}
+  .metric b{display:block; font-size:30px; font-variant-numeric:tabular-nums;}
+  .metric span{color:var(--muted); font-size:13px;}
+
+  /* Nav */
+  nav{display:flex; border-top:1px solid var(--line); background:var(--bg); position:sticky; bottom:0;
+    padding-bottom:env(safe-area-inset-bottom);}
+  nav button{flex:1; background:none; border:none; color:var(--muted); padding:12px 0 10px; font-size:12px; font-weight:700; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:3px;}
+  nav button .ic{font-size:20px; line-height:1;}
+  nav button.on{color:var(--accent);}
+
+  /* Modal */
+  .overlay{position:fixed; inset:0; background:rgba(0,0,0,.6); display:none; align-items:center; justify-content:center; padding:24px; z-index:20;}
+  .overlay.show{display:flex;}
+  .modal{background:var(--card); border:1px solid var(--line); border-radius:18px; padding:22px; max-width:360px; width:100%; text-align:center;}
+  .modal h2{margin:0 0 12px;}
+  .modal .big{font-size:40px; font-weight:800; color:var(--accent); margin:6px 0;}
+  .modal p{color:var(--muted); margin:4px 0;}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="stat"><b id="h-score">0</b><span>Score</span></div>
+    <div class="stat"><b id="h-streak">0</b><span>Série</span></div>
+    <div class="stat"><b id="h-timer">—</b><span>Chrono</span></div>
+  </header>
+
+  <main>
+    <!-- PLAY -->
+    <section id="screen-play" class="screen active">
+      <div class="prompt">
+        <div class="q" id="q-prompt">…</div>
+        <div class="sub" id="q-sub"></div>
+      </div>
+      <div id="q-body"></div>
+      <div class="feedback" id="feedback"></div>
+      <div class="pad" id="pad"></div>
+      <div class="actions">
+        <button class="btn primary" id="action-btn" disabled>Vérifier</button>
+        <div class="btn-row">
+          <button class="btn ghost" id="skip-btn">Passer</button>
+          <button class="btn ghost" id="quick-btn">Session rapide · 2:00</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- STATS -->
+    <section id="screen-stats" class="screen">
+      <div class="grid2">
+        <div class="metric"><b id="m-total">0</b><span>Réponses</span></div>
+        <div class="metric"><b id="m-correct">0</b><span>Bonnes réponses</span></div>
+        <div class="metric"><b id="m-acc">—</b><span>Précision</span></div>
+        <div class="metric"><b id="m-time">—</b><span>Temps moyen</span></div>
+        <div class="metric"><b id="m-streak">0</b><span>Meilleure série</span></div>
+        <div class="metric"><b id="m-session">0</b><span>Score session</span></div>
+      </div>
+      <div class="actions">
+        <button class="btn ghost" id="reset-btn">Réinitialiser les stats</button>
+      </div>
+    </section>
+
+    <!-- SETTINGS -->
+    <section id="screen-settings" class="screen">
+      <div class="group">
+        <h3>Mode de jeu</h3>
+        <div class="seg" id="seg-mode">
+          <button data-mode="1">Boxes</button>
+          <button data-mode="2">Note→Accords</button>
+          <button data-mode="3">Mixte</button>
+        </div>
+        <div class="hint">Boxes = compléter les quatre accords autour d'une note diagonale · Note→Accords = trouver les accords · Mixte = les deux au hasard.</div>
+      </div>
+      <div class="group">
+        <h3>Type d'accord</h3>
+        <div class="seg" id="seg-quality">
+          <button data-quality="maj6">maj6</button>
+          <button data-quality="min6">min6</button>
+          <button data-quality="both">Les deux</button>
+        </div>
+        <div class="hint">maj6 = 1 · 3 · 5 · 6 &nbsp;—&nbsp; min6 = 1 · ♭3 · 5 · 6</div>
+      </div>
+      <div class="group">
+        <div class="toggle">
+          <span class="lbl">Chrono par question (20 s)</span>
+          <div class="switch" id="sw-timer"><div class="knob"></div></div>
+        </div>
+        <div class="hint">Force la rapidité : la réponse se dévoile à 0.</div>
+      </div>
+    </section>
+  </main>
+
+  <nav>
+    <button data-screen="play" class="on"><span class="ic">♪</span>Jouer</button>
+    <button data-screen="stats"><span class="ic">▤</span>Stats</button>
+    <button data-screen="settings"><span class="ic">⚙</span>Réglages</button>
+  </nav>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="modal" id="modal"></div>
+</div>
+
+<script>
+"use strict";
+
+/* ===================== Théorie musicale ===================== */
+const NAME_TO_PC = {
+  'C':0,'B#':0, 'C#':1,'Db':1, 'D':2, 'D#':3,'Eb':3, 'E':4,'Fb':4,
+  'F':5,'E#':5, 'F#':6,'Gb':6, 'G':7, 'G#':8,'Ab':8, 'A':9,
+  'A#':10,'Bb':10, 'B':11,'Cb':11
+};
+// Noms neutres du clavier (dièses préférés) + équivalent enharmonique
+const PC_SHARP = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+const PC_FLAT  = ['', 'Db','', 'Eb','', '', 'Gb','', 'Ab','', 'Bb',''];
+
+// Accords orthographiés correctement (1 · 3 · 5 · 6)
+const RAW = {
+  maj6: [
+    ['C','E','G','A'],   ['Db','F','Ab','Bb'], ['D','F#','A','B'],  ['Eb','G','Bb','C'],
+    ['E','G#','B','C#'], ['F','A','C','D'],     ['F#','A#','C#','D#'],['G','B','D','E'],
+    ['Ab','C','Eb','F'], ['A','C#','E','F#'],   ['Bb','D','F','G'],  ['B','D#','F#','G#']
+  ],
+  min6: [
+    ['C','Eb','G','A'],  ['C#','E','G#','A#'],  ['D','F','A','B'],   ['Eb','Gb','Bb','C'],
+    ['E','G','B','C#'],  ['F','Ab','C','D'],    ['F#','A','C#','D#'],['G','Bb','D','E'],
+    ['G#','B','D#','F'], ['A','C','E','F#'],    ['Bb','Db','F','G'], ['B','D','F#','G#']
+  ]
+};
+const DEGREES = ['1','3','5','6'];
+const INTERVALS = { maj6:[0,4,7,9], min6:[0,3,7,9] };
+const BOX_ROWS = [3,2,1,0];
+
+function buildChords(list){
+  return list.map(notes => ({ root:notes[0], notes, pcs:notes.map(n=>NAME_TO_PC[n]) }));
+}
+const CHORDS = { maj6:buildChords(RAW.maj6), min6:buildChords(RAW.min6) };
+const BY_ROOTPC = { maj6:{}, min6:{} };
+for(const q of ['maj6','min6']) CHORDS[q].forEach(c => BY_ROOTPC[q][c.pcs[0]] = c);
+
+const pretty = s => s.replace(/#/g,'♯').replace(/b/g,'♭');
+const qText  = q => q === 'maj6' ? 'maj6' : 'min6';
+const rnd    = n => Math.floor(Math.random()*n);
+
+/* ===================== État ===================== */
+const PERQ_MS = 20000, QUICK_MS = 120000;
+const state = {
+  settings:{ mode:3, quality:'both', timer:false },
+  session:{ score:0, streak:0 },
+  stats:{ total:0, correct:0, totalTimeMs:0, bestStreak:0 },
+  quick:{ active:false, endsAt:0, answered:0, correct:0 },
+  q:null, slots:[], active:0, checked:false,
+  qStart:0, perQEndsAt:0, autoAdv:null
+};
+
+/* ===================== Persistance ===================== */
+function loadStore(){
+  try{ Object.assign(state.stats, JSON.parse(localStorage.getItem('jazz6.stats')||'{}')); }catch(e){}
+  try{ Object.assign(state.settings, JSON.parse(localStorage.getItem('jazz6.settings')||'{}')); }catch(e){}
+}
+const saveStats    = () => localStorage.setItem('jazz6.stats', JSON.stringify(state.stats));
+const saveSettings = () => localStorage.setItem('jazz6.settings', JSON.stringify(state.settings));
+
+const el = id => document.getElementById(id);
+
+/* ===================== Génération de questions ===================== */
+function pickQuality(){
+  return state.settings.quality === 'both' ? (Math.random()<0.5?'maj6':'min6') : state.settings.quality;
+}
+function genQuestion(){
+  clearTimeout(state.autoAdv);
+  let mode = state.settings.mode;
+  if(mode === 3) mode = Math.random()<0.5 ? 1 : 2;
+  const quality = pickQuality();
+  if(mode === 1) genMode1(quality); else genMode2(quality);
+  state.checked = false;
+  state.active = 0;
+  state.qStart = performance.now();
+  state.perQEndsAt = (state.settings.timer && !state.quick.active) ? Date.now()+PERQ_MS : 0;
+  renderQuestion();
+}
+function genMode1(quality){
+  const givenPc = rnd(12);
+  const givenName = PC_SHARP[givenPc];
+  const columns = DEGREES.map((role,roleIndex)=>{
+    const rootPc = (givenPc - INTERVALS[quality][roleIndex] + 120) % 12;
+    return { role, chord:BY_ROOTPC[quality][rootPc] };
+  });
+  const cells=[];
+  const slots=[];
+  BOX_ROWS.forEach(degreeIndex=>{
+    columns.forEach((column,columnIndex)=>{
+      const cell = {
+        degreeIndex,
+        deg:DEGREES[degreeIndex],
+        columnIndex,
+        pc:column.chord.pcs[degreeIndex],
+        name:column.chord.notes[degreeIndex],
+        given:degreeIndex===columnIndex,
+        root:degreeIndex===0,
+        slot:-1
+      };
+      if(!cell.given){
+        cell.slot=slots.length;
+        slots.push({correctPc:cell.pc, filledPc:null, filledName:''});
+      }
+      cells.push(cell);
+    });
+  });
+  state.q = { type:1, quality, givenPc, givenName, columns, cells };
+  state.slots = slots;
+}
+function genMode2(quality){
+  const givenPc = rnd(12);
+  const givenName = BY_ROOTPC[quality][givenPc].root;
+  const iv = INTERVALS[quality];
+  const rows = DEGREES.map((deg,i)=>{
+    const rootPc = (givenPc - iv[i] + 120) % 12;
+    return { deg, rootPc, rootName:BY_ROOTPC[quality][rootPc].root, given:i===0, slot:-1 };
+  });
+  const slots=[];
+  rows.forEach(r=>{ if(!r.given){ r.slot=slots.length; slots.push({correctPc:r.rootPc, filledPc:null, filledName:''}); } });
+  state.q = { type:2, quality, givenPc, givenName, rows };
+  state.slots = slots;
+}
+
+/* ===================== Rendu ===================== */
+function firstEmpty(){ return state.slots.findIndex(s=>s.filledPc===null); }
+function allFilled(){ return state.slots.every(s=>s.filledPc!==null); }
+
+function renderQuestion(){
+  const q = state.q;
+  if(q.type===1){
+    el('q-prompt').innerHTML = `<span class="muted">Note diagonale :</span> <b>${pretty(q.givenName)}</b>`;
+    el('q-sub').textContent = `Remplis les quatre accords ${qText(q.quality)}. Seule la diagonale est donnée.`;
+  } else {
+    el('q-prompt').innerHTML = `<span class="muted">Où trouve-t-on</span> <b>${pretty(q.givenName)}</b> <span class="muted">?</span>`;
+    el('q-sub').textContent = `Accords ${qText(q.quality)} — donne la fondamentale de chaque rôle.`;
+  }
+  renderBody();
+  renderPad();
+  el('feedback').className = 'feedback';
+  setAction();
+  renderHeader();
+}
+
+function renderBody(){
+  const q = state.q; let html='';
+  if(q.type===1){
+    html = '<div class="box-matrix"><span class="matrix-corner">Niv.</span>';
+    q.columns.forEach((column,i)=>{ html += `<span class="matrix-head">Col. ${i+1}</span>`; });
+    q.cells.forEach((b,i)=>{
+      if(i%4===0) html += `<span class="level${b.root?' root-level':''}">${b.deg}${b.root?' R':''}</span>`;
+      const cls=['box']; let val='';
+      if(b.root) cls.push('root');
+      if(b.given){ cls.push('given'); val=pretty(q.givenName); }
+      else{
+        const s=state.slots[b.slot];
+        if(state.checked){ val=pretty(b.name); cls.push(s.filledPc===b.pc?'ok':'bad'); }
+        else{ cls.push('fill'); if(!s.filledName) cls.push('empty'); if(b.slot===state.active) cls.push('active'); val=s.filledName?pretty(s.filledName):'·'; }
+      }
+      html += `<div class="${cls.join(' ')}" data-slot="${b.given?-1:b.slot}"><span class="val">${val}</span></div>`;
+    });
+    html += '</div>';
+  } else {
+    html = `<div class="rowhint"><b>${pretty(q.givenName)}</b> est le… (trouve la fondamentale)</div><div class="rows">`;
+    q.rows.forEach(r=>{
+      const cls=['rowbox']; let val='';
+      if(r.given){ cls.push('given'); val=pretty(r.rootName); }
+      else{
+        const s=state.slots[r.slot];
+        if(state.checked){ val=pretty(r.rootName); cls.push(s.filledPc===r.rootPc?'ok':'bad'); }
+        else{ cls.push('fill'); if(r.slot===state.active) cls.push('active'); val=s.filledName?pretty(s.filledName):'?'; }
+      }
+      html += `<div class="row"><span class="deg2">${r.deg}</span><span class="${cls.join(' ')}" data-slot="${r.given?-1:r.slot}">${val}</span><span class="qual">${qText(q.quality)}</span></div>`;
+    });
+    html += '</div>';
+  }
+  el('q-body').innerHTML = html;
+}
+
+function renderPad(){
+  let html='';
+  for(let pc=0; pc<12; pc++){
+    const alt = PC_FLAT[pc];
+    html += `<button class="key${alt?' black':''}" data-pc="${pc}">${pretty(PC_SHARP[pc])}${alt?`<span class="alt">${pretty(alt)}</span>`:''}</button>`;
+  }
+  el('pad').innerHTML = html;
+}
+
+function renderHeader(){
+  el('h-score').textContent = state.session.score;
+  el('h-streak').textContent = state.session.streak;
+}
+
+function setAction(){
+  const btn = el('action-btn');
+  if(state.checked){ btn.textContent='Nouvelle question'; btn.disabled=false; btn.dataset.act='next'; }
+  else{ btn.textContent='Vérifier'; btn.disabled=!allFilled(); btn.dataset.act='check'; }
+}
+
+/* ===================== Interaction ===================== */
+function fillNote(pc){
+  if(state.checked) return;
+  let i = state.active;
+  if(i<0 || i>=state.slots.length){
+    const e=firstEmpty(); i = e===-1 ? state.active : e;
+  }
+  const s=state.slots[i]; if(!s) return;
+  s.filledPc=pc; s.filledName=PC_SHARP[pc];
+  const e=firstEmpty(); state.active = e;
+  renderBody(); setAction();
+}
+function selectSlot(i){ if(state.checked||i<0) return; state.active=i; renderBody(); }
+
+function doCheck(){
+  if(state.checked) return;
+  state.checked=true;
+  state.perQEndsAt=0;
+  const elapsed=performance.now()-state.qStart;
+  const good=state.slots.every(s=>s.filledPc===s.correctPc);
+  state.stats.total++; state.stats.totalTimeMs+=elapsed;
+  if(good){
+    state.stats.correct++; state.session.score++; state.session.streak++;
+    if(state.session.streak>state.stats.bestStreak) state.stats.bestStreak=state.session.streak;
+  } else state.session.streak=0;
+  if(state.quick.active){ state.quick.answered++; if(good) state.quick.correct++; }
+  saveStats();
+  renderBody(); renderHeader(); setAction();
+  renderFeedback(good);
+  if(state.quick.active) state.autoAdv=setTimeout(()=>{ if(state.quick.active) genQuestion(); }, 1100);
+}
+
+function renderFeedback(good){
+  const q=state.q; const f=el('feedback');
+  let ans='', exp='';
+  if(q.type===1){
+    ans = q.columns.map((column,i)=>{
+      const c=column.chord;
+      return `<div><b>Col. ${i+1} · ${pretty(c.root)} ${qText(q.quality)}</b> : ${c.notes.map(pretty).join(' · ')}</div>`;
+    }).join('');
+  } else {
+    ans = q.rows.map(r=>`${pretty(r.rootName)} ${qText(q.quality)} <span class="muted">(${r.deg})</span>`).join('&nbsp;&nbsp;·&nbsp;&nbsp;');
+  }
+  exp = q.quality==='maj6' ? 'maj6 = 1 · 3 · 5 · 6 (tierce majeure)' : 'min6 = 1 · ♭3 · 5 · 6 (tierce mineure)';
+  f.className = 'feedback show ' + (good?'good':'bad');
+  f.innerHTML = `<div class="verdict">${good?'Correct':'Incorrect'}</div><div class="ans">${ans}</div><div class="exp">${exp}</div>`;
+}
+
+/* ===================== Chrono ===================== */
+function fmt(ms){ const s=Math.ceil(ms/1000); return Math.floor(s/60)+':'+String(s%60).padStart(2,'0'); }
+function tick(){
+  const now=Date.now(); const t=el('h-timer'); t.classList.remove('warn');
+  if(state.quick.active){
+    const rem=state.quick.endsAt-now;
+    if(rem<=0){ endQuick(); return; }
+    t.textContent=fmt(rem); if(rem<10000) t.classList.add('warn');
+  } else if(state.perQEndsAt && !state.checked){
+    const rem=state.perQEndsAt-now;
+    if(rem<=0){ t.textContent='0:00'; doCheck(); return; }
+    t.textContent=fmt(rem); if(rem<6000) t.classList.add('warn');
+  } else {
+    t.textContent='—';
+  }
+}
+function startQuick(){
+  state.quick={ active:true, endsAt:Date.now()+QUICK_MS, answered:0, correct:0 };
+  showScreen('play'); genQuestion();
+}
+function endQuick(){
+  const {answered,correct}=state.quick;
+  state.quick.active=false; state.perQEndsAt=0; clearTimeout(state.autoAdv);
+  const acc = answered? Math.round(correct/answered*100):0;
+  showModal(`<h2>Session terminée</h2><div class="big">${correct}/${answered}</div><p>bonnes réponses</p><p>Précision ${acc}%</p><p>Meilleure série : ${state.stats.bestStreak}</p><button class="btn primary" id="modal-ok" style="margin-top:14px;width:100%">OK</button>`);
+  el('modal-ok').onclick=()=>{ hideModal(); genQuestion(); };
+  renderHeader();
+}
+
+/* ===================== Modal ===================== */
+function showModal(html){ el('modal').innerHTML=html; el('overlay').classList.add('show'); }
+function hideModal(){ el('overlay').classList.remove('show'); }
+
+/* ===================== Écrans / Stats ===================== */
+function showScreen(name){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.toggle('active', s.id==='screen-'+name));
+  document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on', b.dataset.screen===name));
+  if(name==='stats') renderStats();
+  if(name==='settings') syncSettings();
+  if(name==='play' && !state.q) genQuestion();
+}
+function renderStats(){
+  const s=state.stats;
+  el('m-total').textContent=s.total;
+  el('m-correct').textContent=s.correct;
+  el('m-acc').textContent = s.total? Math.round(s.correct/s.total*100)+'%' : '—';
+  el('m-time').textContent = s.total? (s.totalTimeMs/s.total/1000).toFixed(1)+'s' : '—';
+  el('m-streak').textContent=s.bestStreak;
+  el('m-session').textContent=state.session.score;
+}
+function syncSettings(){
+  document.querySelectorAll('#seg-mode button').forEach(b=>b.classList.toggle('on', +b.dataset.mode===state.settings.mode));
+  document.querySelectorAll('#seg-quality button').forEach(b=>b.classList.toggle('on', b.dataset.quality===state.settings.quality));
+  el('sw-timer').classList.toggle('on', state.settings.timer);
+}
+
+/* ===================== Événements ===================== */
+el('pad').addEventListener('click', e=>{ const k=e.target.closest('[data-pc]'); if(k) fillNote(+k.dataset.pc); });
+el('q-body').addEventListener('click', e=>{ const b=e.target.closest('[data-slot]'); if(b) selectSlot(+b.dataset.slot); });
+el('action-btn').addEventListener('click', ()=>{ el('action-btn').dataset.act==='check' ? doCheck() : genQuestion(); });
+el('skip-btn').addEventListener('click', genQuestion);
+el('quick-btn').addEventListener('click', startQuick);
+el('reset-btn').addEventListener('click', ()=>{
+  if(confirm('Réinitialiser toutes les statistiques ?')){
+    state.stats={ total:0, correct:0, totalTimeMs:0, bestStreak:0 };
+    state.session={ score:0, streak:0 };
+    saveStats(); renderStats(); renderHeader();
+  }
+});
+document.querySelectorAll('nav button').forEach(b=> b.addEventListener('click', ()=>showScreen(b.dataset.screen)));
+el('seg-mode').addEventListener('click', e=>{ const b=e.target.closest('[data-mode]'); if(!b) return; state.settings.mode=+b.dataset.mode; saveSettings(); syncSettings(); genQuestion(); });
+el('seg-quality').addEventListener('click', e=>{ const b=e.target.closest('[data-quality]'); if(!b) return; state.settings.quality=b.dataset.quality; saveSettings(); syncSettings(); genQuestion(); });
+el('sw-timer').addEventListener('click', ()=>{ state.settings.timer=!state.settings.timer; saveSettings(); syncSettings(); if(state.q && !state.checked) state.perQEndsAt=state.settings.timer?Date.now()+PERQ_MS:0; });
+el('overlay').addEventListener('click', e=>{ if(e.target===el('overlay')) hideModal(); });
+
+/* ===================== Init ===================== */
+loadStore();
+syncSettings();
+genQuestion();
+setInterval(tick, 250);
+
+if('serviceWorker' in navigator && location.protocol.startsWith('http')){
+  navigator.serviceWorker.register('sw.js').catch(()=>{});
+}
+</script>
+</body>
+</html>
